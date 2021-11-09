@@ -1,0 +1,23 @@
+{
+  "servers": [
+    {
+      "Address": "localhost",
+      "Port": 3330,
+      "Number": 1
+    },
+    {
+      "Address": "localhost",
+      "Port": 3333,
+      "Number": 2
+    },
+    {
+      "Address": "localhost",
+      "Port": 3339,
+      "Number": 3
+    }
+  ],
+  "connexion": "tcp",
+  "debug": false,
+  "rooms": 10,
+  "days": 10
+}
