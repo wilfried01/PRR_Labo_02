@@ -1,0 +1,25 @@
+{
+  "servers": [
+    {
+      "address": "localhost",
+      "port": 3330,
+      "number": 1
+    },
+    {
+      "address": "localhost",
+      "port": 3333,
+      "number": 2
+    },
+    {
+      "address": "localhost",
+      "port": 3339,
+      "number": 3
+    }
+  ],
+  "appConfig": {
+    "connexion": "tcp",
+    "debug": false,
+    "rooms": 10,
+    "days": 10
+  }
+}
