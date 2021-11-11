@@ -3,55 +3,70 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"net"
 	"os"
 	"strconv"
 	"strings"
-	"time"
+	"sync"
 	"sync/atomic"
+	"time"
 )
 
-// DEFAULT_ROOMS Nombre de chambres par défaut
-const DEFAULT_ROOMS = 10
+type Server struct {
+	Address	string 	`json:"address"`
+	Port	int 	`json:"port"`
+	Number	int    	`json:"number"`
+}
 
-// DEFAULT_DAYS Nombre de jours par défaut
-const DEFAULT_DAYS = 10
+type AppConfig struct {
+	Debug 		bool `json:"debug"`
+	NumberRooms int `json:"rooms"`
+	NumberDays	int `json:"days"`
+	ConnType 	string `json:"connexion"`
+}
 
-// DEFAULT_DEBUG Mode débug par défaut
-const DEFAULT_DEBUG = false
+type Config struct {
+	Servers 	[]Server `json:"servers"`
+	AppConfig 	AppConfig `json:"appConfig"`
+}
 
-// CONN_HOST Host de la connexion
-const CONN_HOST = "localhost"
+func loadConfiguration(filename string) (Config, error) {
+	jsonFile, err := os.Open("config.json")
 
-//CONN_PORT Defaut port
-const CONN_PORT="3333"
+	config := Config{}
+	if err != nil {
+		fmt.Println(err)
+		return config, err
+	}
 
-// CONN_TYPE Type de la connexion
-const CONN_TYPE = "tcp"
-
+	jsonParser := json.NewDecoder(jsonFile)
+	err = jsonParser.Decode(&config)
+	return config, err
+}
 
 
 // HandleInternalMessage s'occupe de de l'accès aux données des chambres
-func HandleInternalMessage(in <-chan string, out chan<- string) {
-	rooms := make([][]string, numberRooms)
-	for i := 0; i < numberDays; i++ {
-		rooms[i] = make([]string, numberDays)
+func HandleInternalMessage(in <-chan string, out chan<- string, appConfig AppConfig) {
+	rooms := make([][]string, appConfig.NumberRooms)
+	for i := 0; i < appConfig.NumberDays; i++ {
+		rooms[i] = make([]string, appConfig.NumberDays)
 	}
 	for {
 		message := <-in
 		params := strings.Fields(message)
 		command := params[0]
 		outMessage := ""
-		if debugMode {
+		if appConfig.Debug {
 			time.Sleep(10 * time.Second)
 		}
 		switch command {
 		case "DISPLAY":
 			day, _ := strconv.Atoi(params[1])
 			username := params[2]
-			for i := 0; i < numberRooms; i++ {
+			for i := 0; i < appConfig.NumberRooms; i++ {
 				roomOccupancy := rooms[i][day-1]
 				if roomOccupancy == "" {
 					roomOccupancy = "EMPTY"
@@ -90,7 +105,7 @@ func HandleInternalMessage(in <-chan string, out chan<- string) {
 			day, _ := strconv.Atoi(params[1])
 			duration, _ := strconv.Atoi(params[2])
 			free := -1
-			for i := 0; i < numberRooms; i++ {
+			for i := 0; i < appConfig.NumberRooms; i++ {
 				if rooms[i][day-1] == "" {
 					free = i
 					for j := 1; j <= duration; j++ {
@@ -116,21 +131,6 @@ func HandleInternalMessage(in <-chan string, out chan<- string) {
 
 	}
 }
-
-// numberRooms Nombre de chambres
-var numberRooms = DEFAULT_ROOMS
-
-// numberDays Nombre de jours
-var numberDays = DEFAULT_DAYS
-
-// debugMode Mode debug
-var debugMode = DEFAULT_DEBUG
-
-// port numéro du port
-var port =CONN_PORT
-
-//SERVERS existing server ports
-var servers[3]string = [3]string{"3333", "3334", "3335"}
 
 //array with other messages stored
 var messages[3]Message
@@ -182,7 +182,7 @@ func  Increment(clock uint64)uint64 {
 func  Compare(clock uint64, otherMessage Message) {
 WITNESS:
 	// If the other value is old, we do not need to do anything
-	if otherMessage.clock < clock  {
+	if otherMessage.clock < clock {
 		Increment(clock)
 		return
 	}
@@ -195,55 +195,23 @@ WITNESS:
 		goto WITNESS
 	}
 }
-//TODO On server start create a new clock at 0 when accessing RESERVE SECTION Send message REQ to all other servers and begin lamport algorithm
-//main Fonction de base
-func main() {
-	//Get program arguments
-	args := os.Args[1:]
-	if len(args) == 4 {
-		days, err1 := strconv.Atoi(args[0])
-		rooms, err2 := strconv.Atoi(args[1])
-		debug, err3 := strconv.ParseBool(args[2])
-		server, err4:= strconv.Atoi(args[3])
-		//Replace default values for rooms and days
-		if err1 == nil && err2 == nil {
-			numberDays = days
-			numberRooms = rooms
-		} else {
-			fmt.Println("Bad arguments, using default values")
-		}
-		//Override debug mode
-		if err3 == nil {
-			debugMode = debug
-			if debugMode {
-				fmt.Println("Server started in debug mode, goroutine handling reservations will be slowed down")
-			}
-		}
-		if err4==nil {
-			port=servers[server-1]
-		}
-	} else {
-		fmt.Println("No arguments have been supplied, using default values")
-	}
-	//init lamport clock
-	/*
-	clock:= 0
-	*/
 
+func HandleConnexion(server Server, appConfig AppConfig, wg *sync.WaitGroup) {
+	defer wg.Done()
 	//Create communication channels
 	in := make(chan string)
 	out := make(chan string)
 	//Start reservation goroutine
-	go HandleInternalMessage(in, out)
+	go HandleInternalMessage(in, out, appConfig)
 	// Listen for incoming connections.
-	l, err := net.Listen(CONN_TYPE, CONN_HOST+":"+port)
+	l, err := net.Listen(appConfig.ConnType, server.Address+":"+strconv.Itoa(server.Port))
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
 		os.Exit(1)
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
-	fmt.Println("Listening on " + CONN_HOST + ":" + port)
+	fmt.Println("Listening on " + server.Address + ":" + strconv.Itoa(server.Port))
 	for {
 		// Listen for an incoming connection.
 		conn, err := l.Accept()
@@ -252,10 +220,27 @@ func main() {
 			os.Exit(1)
 		}
 		// Handle connections in a new goroutine.
-		go HandleRequest(conn, in, out)
-
-
+		go HandleRequest(conn, in, out, appConfig)
 	}
+}
+
+//TODO On server start create a new clock at 0 when accessing RESERVE SECTION Send message REQ to all other servers and begin lamport algorithm
+//main Fonction de base
+func main() {
+	var wg sync.WaitGroup
+
+	config, errLoadingConfig := loadConfiguration("config.json")
+
+	for i := 0; i < len(config.Servers); i++ {
+		wg.Add(1)
+		go HandleConnexion(config.Servers[i], config.AppConfig, &wg)
+	}
+	if errLoadingConfig != nil {
+		fmt.Println("An error occur. Please check your config file")
+		return
+	}
+
+	wg.Wait()
 }
 
 // CheckParamBounds is used to check if a string can be converted to int and if it is in the required bounds (included)
@@ -288,7 +273,7 @@ func CheckParamBounds(conn net.Conn, param string, lowerBound int, upperBound in
 // HandleRequest is responsible for communicating with the user through the conn variable
 // it also uses 2 chanels : in and out, which are used to communicate with the backend goroutine
 // In case of sudden disconnect with the user, it will simply stop itself
-func HandleRequest(conn net.Conn, in chan<- string, out <-chan string) {
+func HandleRequest(conn net.Conn, in chan<- string, out <-chan string, appConfig AppConfig) {
 	// Make a buffer to hold incoming data.
 	buf := make([]byte, 1024)
 	// Send the welcome message to the user
@@ -359,7 +344,7 @@ func HandleRequest(conn net.Conn, in chan<- string, out <-chan string) {
 							return
 						}
 					} else {
-						valueOk, connOk := CheckParamBounds(conn, params[1], 1, numberDays)
+						valueOk, connOk := CheckParamBounds(conn, params[1], 1, appConfig.NumberDays)
 						if !connOk {
 							return
 						}
@@ -382,18 +367,18 @@ func HandleRequest(conn net.Conn, in chan<- string, out <-chan string) {
 							return
 						}
 					} else {
-						ok1, connOk1 := CheckParamBounds(conn, params[1], 1, numberDays)
+						ok1, connOk1 := CheckParamBounds(conn, params[1], 1, appConfig.NumberDays)
 						if !connOk1 {
 							return
 						}
-						ok2, connOk2 := CheckParamBounds(conn, params[2], 1, numberRooms)
+						ok2, connOk2 := CheckParamBounds(conn, params[2], 1, appConfig.NumberRooms)
 						if !connOk2 {
 							return
 						}
 						maxDuration := math.MaxInt32
 						if ok1 {
 							value, _ := strconv.Atoi(params[1])
-							maxDuration = numberDays - value + 1
+							maxDuration = appConfig.NumberDays - value + 1
 						}
 						ok3, connOk3 := CheckParamBounds(conn, params[3], 1, maxDuration)
 						if !connOk3 {
@@ -418,14 +403,14 @@ func HandleRequest(conn net.Conn, in chan<- string, out <-chan string) {
 							return
 						}
 					} else {
-						ok1, connOk1 := CheckParamBounds(conn, params[1], 1, numberDays)
+						ok1, connOk1 := CheckParamBounds(conn, params[1], 1, appConfig.NumberDays)
 						if !connOk1 {
 							return
 						}
 						maxDuration := math.MaxInt32
 						if ok1 {
 							value, _ := strconv.Atoi(params[1])
-							maxDuration = numberDays - value + 1
+							maxDuration = appConfig.NumberDays - value + 1
 						}
 						ok2, connOk2 := CheckParamBounds(conn, params[2], 1, maxDuration)
 						if !connOk2 {
