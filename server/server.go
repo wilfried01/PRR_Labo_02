@@ -51,7 +51,7 @@ func loadConfiguration(filename string) (Config, error) {
 // HandleInternalMessage s'occupe de de l'accès aux données des chambres
 func HandleInternalMessage(in <-chan string, out chan<- string, appConfig AppConfig) {
 	rooms := make([][]string, appConfig.NumberRooms)
-	for i := 0; i < appConfig.NumberDays; i++ {
+	for i := 0; i < appConfig.NumberRooms; i++ {
 		rooms[i] = make([]string, appConfig.NumberDays)
 	}
 	for {
