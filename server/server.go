@@ -147,9 +147,8 @@ func HandleMessageLamport(message Message, clock uint64){
 		if message.typ == "ACK" {
 			//compare local clock with received clock
 			Compare(clock, message)
-
-
 			//updates messages with the message received
+			messages[message.server-1]=message
 
 		}
 		if message.typ == "REL" {
@@ -165,6 +164,7 @@ func HandleMessageLamport(message Message, clock uint64){
 			Compare(clock, message)
 
 			//updates messages with the message received
+			messages[message.server-1]=message
 
 			// sends ACK to message provider
 
