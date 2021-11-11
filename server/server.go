@@ -141,30 +141,35 @@ type Message struct{
 	server int
 
 }
-//handle received messages from other servers will be running all the time 
-func HandleMessageLamport(message Message){
-	if message.typ== "ACK"{
-		//compare local clock with received clock
+//handle received messages from other servers will be running all the time
+func HandleMessageLamport(message Message, clock uint64){
+	for {
+		if message.typ == "ACK" {
+			//compare local clock with received clock
+			Compare(clock, message)
 
-		//updates messages with the message received
 
+			//updates messages with the message received
+
+		}
+		if message.typ == "REL" {
+			//compare local clock with received clock
+			Compare(clock, message)
+
+			//updates messages with the message received
+			messages[message.server-1]=message
+
+		}
+		if message.typ == "REQ" {
+			//compare local clock with received clock
+			Compare(clock, message)
+
+			//updates messages with the message received
+
+			// sends ACK to message provider
+
+		}
 	}
-	if message.typ=="REL"{
-		//compare local clock with received clock
-
-		//updates messages with the message received
-
-
-	}
-	if message.typ=="REQ"{
-		//compare local clock with received clock
-
-		//updates messages with the message received
-
-		// sends ACK to message provider
-
-	}
-
 }
 
 // Increment is used to increment and return the value of the lamport clock
@@ -178,6 +183,7 @@ func  Compare(clock uint64, otherMessage Message) {
 WITNESS:
 	// If the other value is old, we do not need to do anything
 	if otherMessage.clock < clock  {
+		Increment(clock)
 		return
 	}
 
@@ -219,6 +225,11 @@ func main() {
 	} else {
 		fmt.Println("No arguments have been supplied, using default values")
 	}
+	//init lamport clock
+	/*
+	clock:= 0
+	*/
+
 	//Create communication channels
 	in := make(chan string)
 	out := make(chan string)
@@ -242,6 +253,8 @@ func main() {
 		}
 		// Handle connections in a new goroutine.
 		go HandleRequest(conn, in, out)
+
+
 	}
 }
 
