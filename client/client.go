@@ -15,7 +15,7 @@ const N = 3
 // CONN_HOST Host de la connexion
 const CONN_HOST = "localhost"
 //servers existing server ports
-var servers[3]string = [3]string{"3330", "3333", "3339 "}
+var servers[3]string = [3]string{"3330", "3333", "3339"}
 
 func main() {
 	arguments := os.Args
@@ -25,7 +25,7 @@ func main() {
 		CONNECT = CONN_HOST+":"+servers[value-1]
 	}
 	if len(arguments) == 1 {
-		CONNECT = CONN_HOST+":"+ servers[rand2.Intn(N)]
+		CONNECT = CONN_HOST+":"+servers[rand2.Intn(N)]
 
 	}
 

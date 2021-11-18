@@ -49,7 +49,7 @@ func loadConfiguration(filename string) (Config, error) {
 
 
 // HandleInternalMessage s'occupe de de l'accès aux données des chambres
-func HandleInternalMessage(in <-chan string, out chan<- string, appConfig AppConfig) {
+func HandleInternalMessage(in <-chan string, out chan<- string, appConfig AppConfig, server Server,clock uint64) {
 	rooms := make([][]string, appConfig.NumberRooms)
 	for i := 0; i < appConfig.NumberRooms; i++ {
 		rooms[i] = make([]string, appConfig.NumberDays)
@@ -85,6 +85,18 @@ func HandleInternalMessage(in <-chan string, out chan<- string, appConfig AppCon
 			duration, _ := strconv.Atoi(params[3])
 			username := params[4]
 			free := true
+			for  i:=0 ; i<len(servers); i++{
+				if server.Number != i {
+					address := fmt.Sprintf("localhost:%d", servers[i].Port)
+					connNew, err:= net.Dial("tcp", address)
+					if err != nil{
+						fmt.Println("Connection failed")
+					}
+					output := fmt.Sprintf("REQ %d %d\n", clock, server.Number)
+					connNew.Write([]byte(output))
+					connNew.Close()
+				}
+			}
 			for i := 0; i < duration; i++ {
 				if rooms[roomNumber-1][day-1+i] != "" {
 					free = false
@@ -127,6 +139,62 @@ func HandleInternalMessage(in <-chan string, out chan<- string, appConfig AppCon
 				output = fmt.Sprint("Room ", free+1, " is free at day ", day, " for ", duration, " nights\r\n")
 			}
 			out <- output
+
+		case "ACK" :
+			//compare local clock with received clock
+			value, _:=strconv.Atoi(params[1])
+			Compare(clock, uint64(value))
+			//updates messages with the message received
+			serverR, _:=strconv.Atoi(params[2])
+			if messages[serverR-1].typ!= "REQ" {
+				var mess Message
+				mess.typ = command
+				mess.clock = uint64(value)
+				mess.server = serverR
+				messages[serverR-1] = mess
+			}
+
+
+		case "REL" :
+			//compare local clock with received clock
+			value, _:=strconv.Atoi(params[1])
+			Compare(clock, uint64(value))
+			//updates messages with the message received
+			serverR, _:=strconv.Atoi(params[2])
+			var mess Message
+			mess.typ=command
+			mess.clock=uint64(value)
+			mess.server=serverR
+			messages[serverR-1]=mess
+
+		case "REQ" :
+			//compare local clock with received clock
+			value, _:=strconv.Atoi(params[1])
+			Compare(clock, uint64(value))
+			fmt.Println(clock)
+			fmt.Println(value)
+			//updates messages with the message received
+			serverR, _:=strconv.Atoi(params[2])
+			fmt.Println(serverR)
+			var mess Message
+			mess.typ=command
+			mess.clock=uint64(value)
+			mess.server=serverR
+			messages[serverR-1] =mess
+
+			output := fmt.Sprintf("ACK %d %d" , clock,server.Number)
+			out <- output
+
+		case "UPD" :
+			username := params[1]
+			day, _ := strconv.Atoi(params[2])
+			roomNumber, _ := strconv.Atoi(params[3])
+			duration, _ := strconv.Atoi(params[4])
+
+			for i := 0; i < duration; i++ {
+				rooms[roomNumber-1][day-1+i] = username
+			}
+
 		}
 
 	}
@@ -174,7 +242,7 @@ func HandleConnexion(server Server, appConfig AppConfig, wg *sync.WaitGroup) {
 	out := make(chan string)
 	clock:= 0
 	//Start reservation goroutine
-	go HandleInternalMessage(in, out, appConfig)
+	go HandleInternalMessage(in, out, appConfig, server,uint64(clock))
 	// Listen for incoming connections.
 	l, err := net.Listen(appConfig.ConnType, server.Address+":"+strconv.Itoa(server.Port))
 	if err != nil {
@@ -255,6 +323,9 @@ func criticalSectionAccess(server Server){
 				if messages[server.Number-1].clock > messages[i].clock{
 				check=false
 				}
+				if messages[server.Number-1].clock == messages[i].clock && server.Number > i+1{
+					check=false
+				}
 			}
 		}
 		if check == true {
@@ -329,6 +400,7 @@ func HandleRequest(conn net.Conn, in chan<- string, out <-chan string, appConfig
 			//Check there's actually a command
 			if len(params) > 0 {
 				command = params[0]
+				fmt.Println(command)
 				switch command {
 				case "DISPLAY":
 					//Check the parameters
@@ -356,14 +428,6 @@ func HandleRequest(conn net.Conn, in chan<- string, out <-chan string, appConfig
 				case "RESERVE":
 					//Check params
 					// sends request to every port when reservation is initiated
-					for  i:=0 ; i<len(servers); i++{
-						address:=fmt.Sprintf( "localhost:%d",servers[i].Port)
-						connNew, _:= net.Dial("tcp", address)
-						output := fmt.Sprintf("REQ %d %d", clock, server.Number)
-						connNew.Write([]byte(output))
-						connNew.Close()
-
-				}
 					if len(params) != 4 {
 						_, err := conn.Write([]byte("Invalid parameters, enter HELP to get the list of supported commands\r\n"))
 						if err != nil {
@@ -430,45 +494,37 @@ func HandleRequest(conn net.Conn, in chan<- string, out <-chan string, appConfig
 					}
 				case "ACK" :
 					//compare local clock with received clock
-					value, _:=strconv.Atoi(params[1])
-					Compare(clock, uint64(value))
-					//updates messages with the message received
-					serverR, _:=strconv.Atoi(params[2])
-					if messages[serverR-1].typ!= "REQ" {
-						var mess Message
-						mess.typ = command
-						mess.clock = uint64(value)
-						mess.server = serverR
-						messages[serverR-1] = mess
+					in <- userString
+					_, err := conn.Write([]byte(<-out))
+					if err != nil {
+						return
 					}
 
 
 				case "REL" :
 					//compare local clock with received clock
-					value, _:=strconv.Atoi(params[1])
-					Compare(clock, uint64(value))
-					//updates messages with the message received
-					serverR, _:=strconv.Atoi(params[2])
-					var mess Message
-					mess.typ=command
-					mess.clock=uint64(value)
-					mess.server=serverR
-					messages[serverR-1] =mess
+					in <- userString
+					_, err := conn.Write([]byte(<-out))
+					if err != nil {
+						return
+					}
 
 				case "REQ" :
 					//compare local clock with received clock
-					value, _:=strconv.Atoi(params[1])
-					Compare(clock, uint64(value))
-					//updates messages with the message received
-					serverR, _:=strconv.Atoi(params[2])
-					var mess Message
-					mess.typ=command
-					mess.clock=uint64(value)
-					mess.server=serverR
-					messages[serverR-1] =mess
+					in <- userString
+					_, err := conn.Write([]byte(<-out))
+					if err != nil {
+						return
+					}
 
-					output := fmt.Sprintf("ACK %d %d" , clock,server.Number)
-					conn.Write([]byte(output))
+				case "UPD" :
+
+					in <- userString
+					_, err := conn.Write([]byte(<-out))
+					if err != nil {
+						return
+					}
+
 
 
 
