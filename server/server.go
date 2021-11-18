@@ -340,7 +340,7 @@ func HandleRequest(conn net.Conn, in chan<- string, out <-chan string, appConfig
 					for  i:=0 ; i<len(servers); i++{
 						address:=fmt.Sprint( "localhost:%d",servers[i].Port)
 						conn, _:= net.Dial("tcp", address)
-						output := fmt.Sprint("REQ %d %d" , clock,server.Number)
+						output := fmt.Sprintf("REQ %d %d", clock, server.Number)
 						conn.Write([]byte(output))
 
 				}
@@ -447,7 +447,7 @@ func HandleRequest(conn net.Conn, in chan<- string, out <-chan string, appConfig
 					mess.server=serverR
 					messages[serverR-1] =mess
 
-					output := fmt.Sprint("ACK %d %d" , clock,server.Number)
+					output := fmt.Sprintf("ACK %d %d" , clock,server.Number)
 					conn.Write([]byte(output))
 
 
