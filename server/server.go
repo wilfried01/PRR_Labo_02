@@ -244,7 +244,26 @@ func CheckParamBounds(conn net.Conn, param string, lowerBound int, upperBound in
 	return true, true
 
 }
+func criticalSectionAccess(server Server){
+	if messages[server.Number-1].typ != "REQ"{
+		return
+	}else{
+	 var check	bool
+	 check=true
+		for i:=0; i<len(messages); i++{
+			if messages[i].server!=server.Number{
+				if messages[server.Number-1].clock > messages[i].clock{
+				check=false
+				}
+			}
+		}
+		if check == true {
+// Do Reservation
+		}
 
+	}
+
+}
 // HandleRequest is responsible for communicating with the user through the conn variable
 // it also uses 2 chanels : in and out, which are used to communicate with the backend goroutine
 // In case of sudden disconnect with the user, it will simply stop itself
@@ -338,10 +357,11 @@ func HandleRequest(conn net.Conn, in chan<- string, out <-chan string, appConfig
 					//Check params
 					// sends request to every port when reservation is initiated
 					for  i:=0 ; i<len(servers); i++{
-						address:=fmt.Sprint( "localhost:%d",servers[i].Port)
-						conn, _:= net.Dial("tcp", address)
+						address:=fmt.Sprintf( "localhost:%d",servers[i].Port)
+						connNew, _:= net.Dial("tcp", address)
 						output := fmt.Sprintf("REQ %d %d", clock, server.Number)
-						conn.Write([]byte(output))
+						connNew.Write([]byte(output))
+						connNew.Close()
 
 				}
 					if len(params) != 4 {
