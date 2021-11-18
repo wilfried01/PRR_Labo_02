@@ -134,43 +134,14 @@ func HandleInternalMessage(in <-chan string, out chan<- string, appConfig AppCon
 
 //array with other messages stored
 var messages[3]Message
-
+var servers[3]Server
 type Message struct{
 	typ string
 	clock uint64
 	server int
 
 }
-//handle received messages from other servers will be running all the time
-func HandleMessageLamport(message Message, clock uint64){
-	for {
-		if message.typ == "ACK" {
-			//compare local clock with received clock
-			Compare(clock, message)
-			//updates messages with the message received
-			messages[message.server-1]=message
 
-		}
-		if message.typ == "REL" {
-			//compare local clock with received clock
-			Compare(clock, message)
-
-			//updates messages with the message received
-			messages[message.server-1]=message
-
-		}
-		if message.typ == "REQ" {
-			//compare local clock with received clock
-			Compare(clock, message)
-
-			//updates messages with the message received
-			messages[message.server-1]=message
-
-			// sends ACK to message provider
-
-		}
-	}
-}
 
 // Increment is used to increment and return the value of the lamport clock
 func  Increment(clock uint64)uint64 {
@@ -179,16 +150,16 @@ func  Increment(clock uint64)uint64 {
 
 // Compare is called to update our local clock if necessary after
 // witnessing a clock value received from another process
-func  Compare(clock uint64, otherMessage Message) {
+func  Compare(clock uint64, message uint64) {
 WITNESS:
 	// If the other value is old, we do not need to do anything
-	if otherMessage.clock < clock {
+	if message < clock {
 		Increment(clock)
 		return
 	}
 
 	// Ensure that our local clock is at least one ahead.
-	if !atomic.CompareAndSwapUint64(&clock, clock, otherMessage.clock+1) {
+	if !atomic.CompareAndSwapUint64(&clock, clock, message+1) {
 		// The CAS failed, so we just retry. Eventually our CAS should
 		// succeed or a future witness will pass us by and our witness
 		// will end.
@@ -201,6 +172,7 @@ func HandleConnexion(server Server, appConfig AppConfig, wg *sync.WaitGroup) {
 	//Create communication channels
 	in := make(chan string)
 	out := make(chan string)
+	clock:= 0
 	//Start reservation goroutine
 	go HandleInternalMessage(in, out, appConfig)
 	// Listen for incoming connections.
@@ -220,7 +192,9 @@ func HandleConnexion(server Server, appConfig AppConfig, wg *sync.WaitGroup) {
 			os.Exit(1)
 		}
 		// Handle connections in a new goroutine.
-		go HandleRequest(conn, in, out, appConfig)
+		go HandleRequest(conn, in, out, appConfig,uint64(clock),server)
+
+		// Handle
 	}
 }
 
@@ -233,6 +207,7 @@ func main() {
 
 	for i := 0; i < len(config.Servers); i++ {
 		wg.Add(1)
+		servers[i]=config.Servers[i]
 		go HandleConnexion(config.Servers[i], config.AppConfig, &wg)
 	}
 	if errLoadingConfig != nil {
@@ -273,7 +248,7 @@ func CheckParamBounds(conn net.Conn, param string, lowerBound int, upperBound in
 // HandleRequest is responsible for communicating with the user through the conn variable
 // it also uses 2 chanels : in and out, which are used to communicate with the backend goroutine
 // In case of sudden disconnect with the user, it will simply stop itself
-func HandleRequest(conn net.Conn, in chan<- string, out <-chan string, appConfig AppConfig) {
+func HandleRequest(conn net.Conn, in chan<- string, out <-chan string, appConfig AppConfig,clock uint64, server Server) {
 	// Make a buffer to hold incoming data.
 	buf := make([]byte, 1024)
 	// Send the welcome message to the user
@@ -361,6 +336,14 @@ func HandleRequest(conn net.Conn, in chan<- string, out <-chan string, appConfig
 
 				case "RESERVE":
 					//Check params
+					// sends request to every port when reservation is initiated
+					for  i:=0 ; i<len(servers); i++{
+						address:=fmt.Sprint( "localhost:%d",servers[i].Port)
+						conn, _:= net.Dial("tcp", address)
+						output := fmt.Sprint("REQ %d %d" , clock,server.Number)
+						conn.Write([]byte(output))
+
+				}
 					if len(params) != 4 {
 						_, err := conn.Write([]byte("Invalid parameters, enter HELP to get the list of supported commands\r\n"))
 						if err != nil {
@@ -425,6 +408,49 @@ func HandleRequest(conn net.Conn, in chan<- string, out <-chan string, appConfig
 							}
 						}
 					}
+				case "ACK" :
+					//compare local clock with received clock
+					value, _:=strconv.Atoi(params[1])
+					Compare(clock, uint64(value))
+					//updates messages with the message received
+					serverR, _:=strconv.Atoi(params[2])
+					if messages[serverR-1].typ!= "REQ" {
+						var mess Message
+						mess.typ = command
+						mess.clock = uint64(value)
+						mess.server = serverR
+						messages[serverR-1] = mess
+					}
+
+
+				case "REL" :
+					//compare local clock with received clock
+					value, _:=strconv.Atoi(params[1])
+					Compare(clock, uint64(value))
+					//updates messages with the message received
+					serverR, _:=strconv.Atoi(params[2])
+					var mess Message
+					mess.typ=command
+					mess.clock=uint64(value)
+					mess.server=serverR
+					messages[serverR-1] =mess
+
+				case "REQ" :
+					//compare local clock with received clock
+					value, _:=strconv.Atoi(params[1])
+					Compare(clock, uint64(value))
+					//updates messages with the message received
+					serverR, _:=strconv.Atoi(params[2])
+					var mess Message
+					mess.typ=command
+					mess.clock=uint64(value)
+					mess.server=serverR
+					messages[serverR-1] =mess
+
+					output := fmt.Sprint("ACK %d %d" , clock,server.Number)
+					conn.Write([]byte(output))
+
+
 
 				default:
 					_, err := conn.Write([]byte("Unknown command, enter HELP to get the list of supported commands\r\n"))
