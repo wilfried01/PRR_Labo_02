@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"server"
@@ -33,7 +32,8 @@ func main() {
 			break
 		}
 	}
-	fmt.Fprintf(newServer.OutConnections[1], "REQ 10 3\n")
+
+	newServer.AskSC()
 
 	for {
 		time.Sleep(time.Second * 10)
