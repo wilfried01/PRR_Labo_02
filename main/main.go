@@ -22,18 +22,19 @@ func main() {
 		log.Fatal(err)
 		return
 	}
-	var newServer *server.Server
+	var servers []*server.Server = make([]*server.Server, configuration.ServerNumber)
 	for i := configuration.ServerNumber; i > 0; i-- {
-		newServer = server.NewServer(i)
+		servers[i-1] = server.NewServer(i)
 	}
 	for {
 		time.Sleep(time.Second * 1)
-		if newServer.Available {
+		if servers[configuration.ServerNumber-1].Available {
 			break
 		}
 	}
 
-	newServer.AskSC()
+	servers[0].AskSC()
+	servers[1].AskSC()
 
 	for {
 		time.Sleep(time.Second * 10)

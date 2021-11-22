@@ -23,6 +23,7 @@ type Server struct {
 	internalChanIn  chan string
 	internalChanOut chan string
 	scChan          chan bool
+	debugMode       bool
 	lamportArray    []LamportState
 	Config          Configuration
 }
@@ -45,6 +46,7 @@ func NewServer(serverNumber int) *Server {
 	server.Config = configuration
 
 	//Create internal variables
+	server.debugMode = true
 	server.OutConnections = make([]net.Conn, configuration.ServerNumber)
 	server.InConnections = make([]net.Conn, configuration.ServerNumber)
 	server.internalChanIn = make(chan string)
@@ -127,6 +129,13 @@ func (s *Server) handleInternalMessages() {
 				Stamp: s.stamp,
 			}
 			s.internalChanOut <- strconv.Itoa(s.stamp)
+		case "LOCALREL":
+			s.stamp += 1
+			s.lamportArray[s.serverNumber] = LamportState{
+				State: REL,
+				Stamp: s.stamp,
+			}
+			s.internalChanOut <- strconv.Itoa(s.stamp)
 		}
 
 		//Grant SC access if needed
@@ -143,8 +152,11 @@ func (s *Server) handleInternalMessages() {
 					}
 				}
 			}
+			if correct {
+				s.scChan <- true
+			}
 		}
-
+		time.Sleep(time.Second)
 	}
 
 }
@@ -159,6 +171,7 @@ func maxOf(a int, b int) int {
 func (s *Server) handleLamport(conn net.Conn) {
 	for {
 		//TODO: Handle error
+
 		input, _ := bufio.NewReader(conn).ReadString('\n')
 		input = strings.TrimSuffix(input, "\n")
 		//Format pour recevoir : ACK <estampille> <num server expediteur>
@@ -225,11 +238,22 @@ func (s *Server) AskSC() {
 		}
 	}
 
-	for {
+	//TODO: Do something while you have SC
+	_ = <-s.scChan
+	output := fmt.Sprintf("Server %d entering SC", s.serverNumber)
+	fmt.Println(output)
+	time.Sleep(time.Second * 5)
+	s.internalChanIn <- "LOCALREL"
+	actualStamp = <-s.internalChanOut
 
+	for i := 0; i < numberOfServers; i++ {
+		if i != s.serverNumber {
+			fmt.Fprintf(s.OutConnections[i], "REL %s %d\n", actualStamp, s.serverNumber)
+		}
 	}
+	output = fmt.Sprintf("Server %d leaving SC", s.serverNumber)
+	fmt.Println(output)
 
-	//TODO: start waiting for SC
 }
 
 type Configuration struct {
