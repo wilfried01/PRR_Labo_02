@@ -2,17 +2,20 @@ package server
 
 import (
 	"bufio"
+	"configuration"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"server/hotel"
 	"strconv"
 	"strings"
 	"time"
 )
 
 type Server struct {
+	hotel        hotel.Hotel
 	serverNumber int
 	tcpListener  net.Listener
 	//TODO: put this private, used right now for debugging purposes
@@ -26,19 +29,20 @@ type Server struct {
 	inSc            bool
 	debugMode       bool
 	lamportArray    []LamportState
-	Config          Configuration
+	Config          configuration.Configuration
 }
 
-//Server number starts at 1
+//NewServer handles creating a new server with correct parameters,
+//server number starts at 1
 func NewServer(serverNumber int) *Server {
 	number := serverNumber - 1
 	server := Server{serverNumber: number, Available: false}
 	server.stamp = 0
 	//Read config
-	file, _ := os.Open("configuration.json")
+	file, _ := os.Open("server/configuration.json")
 	defer file.Close()
 	decoder := json.NewDecoder(file)
-	configuration := Configuration{}
+	configuration := configuration.Configuration{}
 	err := decoder.Decode(&configuration)
 	if err != nil {
 		log.Fatal(err)
@@ -47,7 +51,7 @@ func NewServer(serverNumber int) *Server {
 	server.Config = configuration
 
 	//Create internal variables
-	server.debugMode = true
+	server.debugMode = false
 	server.OutConnections = make([]net.Conn, configuration.ServerNumber)
 	server.InConnections = make([]net.Conn, configuration.ServerNumber)
 	server.internalChanIn = make(chan string)
@@ -67,6 +71,17 @@ func NewServer(serverNumber int) *Server {
 	return &server
 }
 
+func (s *Server) handleClient(conn net.Conn) {
+	for {
+		userInput, _ := bufio.NewReader(conn).ReadString('\n')
+		s.AskSC()
+		time.Sleep(time.Second * 3)
+		fmt.Fprintf(conn, "WELCOME \n")
+		fmt.Fprintf(conn, userInput+"\n")
+		s.releaseSC()
+	}
+}
+
 func (s *Server) StartListening() {
 	for {
 		//TODO: Handle errors
@@ -75,15 +90,31 @@ func (s *Server) StartListening() {
 		input, _ := bufio.NewReader(conn).ReadString('\n')
 		input = strings.TrimSuffix(input, "\n")
 		tokens := strings.Fields(input)
-		if tokens[0] == "HELLO" {
+		size := len(tokens)
+		if size >= 2 && tokens[0] == "HELLO" {
 			inNumber, _ := strconv.Atoi(tokens[1])
 			s.InConnections[inNumber] = conn
 			go s.handleLamport(conn)
 		} else {
-
+			s.internalChanIn <- "GETAVAILABLE"
+			response := <-s.internalChanOut
+			if response != "TRUE" {
+				fmt.Fprintf(conn, "System is not availabe now, please retry later\n")
+			} else {
+				go s.handleClient(conn)
+			}
 		}
 		//fmt.Println(input)
 	}
+}
+
+func (s *Server) GetAvailable() bool {
+	s.internalChanIn <- "GETAVAILABLE"
+	output := <-s.internalChanOut
+	if output == "TRUE" {
+		return true
+	}
+	return false
 }
 
 func (s *Server) handleInternalMessages() {
@@ -139,34 +170,55 @@ func (s *Server) handleInternalMessages() {
 			}
 			s.inSc = false
 			s.internalChanOut <- strconv.Itoa(s.stamp)
+		//Write external data
 		case "SYNCDATA":
 
+		//Return local data
+		case "GETDATA":
+
+		case "AVAILABLE":
+			s.Available = true
+			s.internalChanOut <- "OK"
+		case "GETAVAILABLE":
+			if s.Available {
+				s.internalChanOut <- "TRUE"
+			} else {
+				s.internalChanOut <- "FALSE"
+			}
 		}
 
-		//Grant SC access if needed
+		//Check if sc is asked and do not check if already in sc
 		if s.lamportArray[s.serverNumber].State == REQ && !s.inSc {
 			correct := true
 			for i := 0; i < s.Config.ServerNumber; i++ {
+				//Check only other servers state
 				if i != s.serverNumber {
+					//Check if stamp is bigger than the REQ
 					if s.lamportArray[i].Stamp < s.lamportArray[s.serverNumber].Stamp {
 						correct = false
 						break
+						//Check if other is also demanding the sc and if it's server number is lower than this one
 					} else if s.lamportArray[i].State == REQ && s.lamportArray[i].Stamp == s.lamportArray[s.serverNumber].Stamp {
+						//Server doesn't have priority
 						if i <= s.serverNumber {
 							correct = false
 							break
+							//Server has priority
 						} else {
 							break
 						}
 					}
 				}
 			}
+			//If sc is available send something to release waiting goroutine
 			if correct {
 				s.inSc = true
 				s.scChan <- true
 			}
 		}
-		time.Sleep(time.Second)
+		if s.debugMode {
+			time.Sleep(time.Second)
+		}
 	}
 
 }
@@ -226,12 +278,14 @@ func (s *Server) ConnectToOthers() {
 				}
 				time.Sleep(time.Second)
 			}
+			//Make handshake
 			s.OutConnections[i] = conn
 			fmt.Fprintf(conn, "HELLO "+strconv.Itoa(s.serverNumber)+"\n")
 		}
 	}
 	fmt.Println("CONNECTING SUCCESSFUL ON SERVER " + strconv.Itoa(s.serverNumber+1))
-	s.Available = true
+	s.internalChanIn <- "AVAILABLE"
+	_ = <-s.internalChanOut
 	return
 }
 
@@ -256,25 +310,29 @@ func (s *Server) AskSC() {
 	fmt.Println(output)
 
 	//Sleeping to simulate SC treatement
-	time.Sleep(time.Second * 5)
+	if s.debugMode {
+		time.Sleep(time.Second * 5)
+	}
+
+	//TODO: Remove this, used for tests RN
+	//s.releaseSC()
+
+}
+
+func (s *Server) releaseSC() {
 	fmt.Println("Sending LOCALREL")
 	s.internalChanIn <- "LOCALREL"
-	time.Sleep(time.Second * 3)
-	actualStamp = <-s.internalChanOut
-
-	for i := 0; i < numberOfServers; i++ {
+	if s.debugMode {
+		time.Sleep(time.Second * 3)
+	}
+	actualStamp := <-s.internalChanOut
+	output := fmt.Sprintf("Server %d leaving SC", s.serverNumber)
+	fmt.Println(output)
+	for i := 0; i < s.Config.ServerNumber; i++ {
 		if i != s.serverNumber {
 			fmt.Fprintf(s.OutConnections[i], "REL %s %d\n", actualStamp, s.serverNumber)
 		}
 	}
-	output = fmt.Sprintf("Server %d leaving SC", s.serverNumber)
-	fmt.Println(output)
-
-}
-
-type Configuration struct {
-	ServerNumber int
-	Ips          []string
 }
 
 type LamportState struct {

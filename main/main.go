@@ -1,6 +1,7 @@
 package main
 
 import (
+	"configuration"
 	"encoding/json"
 	"log"
 	"os"
@@ -9,35 +10,29 @@ import (
 )
 
 func main() {
-	file, err1 := os.Open("configuration.json")
+	file, err1 := os.Open("server/configuration.json")
 	defer file.Close()
 	if err1 != nil {
 		log.Fatal(err1)
 	}
 
 	decoder := json.NewDecoder(file)
-	configuration := server.Configuration{}
-	err := decoder.Decode(&configuration)
+	configFile := configuration.Configuration{}
+	err := decoder.Decode(&configFile)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
-	var servers []*server.Server = make([]*server.Server, configuration.ServerNumber)
-	for i := configuration.ServerNumber; i > 0; i-- {
+	var servers = make([]*server.Server, configFile.ServerNumber)
+	for i := configFile.ServerNumber; i > 0; i-- {
 		servers[i-1] = server.NewServer(i)
 	}
 	for {
 		time.Sleep(time.Second * 1)
-		if servers[configuration.ServerNumber-1].Available {
+		if servers[configFile.ServerNumber-1].GetAvailable() {
 			break
 		}
 	}
-
-	go servers[0].AskSC()
-	go servers[1].AskSC()
-	go servers[2].AskSC()
-	go servers[3].AskSC()
-	go servers[4].AskSC()
 
 	for {
 		time.Sleep(time.Second * 10)
