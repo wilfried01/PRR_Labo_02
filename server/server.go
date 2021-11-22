@@ -72,13 +72,20 @@ func NewServer(serverNumber int) *Server {
 }
 
 func (s *Server) handleClient(conn net.Conn) {
+	fmt.Println("ASDASD")
+	//fmt.Println(bufio.NewReader(conn).ReadString('\n'))
+	fmt.Println("ASDASDASD")
+	//fmt.Println(bufio.NewReader(conn).ReadString('\n'))
+	//fmt.Fprintf(conn, "Hello client\n")
 	for {
 		userInput, _ := bufio.NewReader(conn).ReadString('\n')
-		s.AskSC()
-		time.Sleep(time.Second * 3)
-		fmt.Fprintf(conn, "WELCOME \n")
-		fmt.Fprintf(conn, userInput+"\n")
-		s.releaseSC()
+		fmt.Printf("RECEIVED %s", userInput)
+		//fmt.Fprintf(conn, userInput)
+		//s.AskSC()
+		//time.Sleep(time.Second * 3)
+		//fmt.Fprintf(conn, "WELCOME \n")
+		fmt.Fprintf(conn, userInput)
+		//s.releaseSC()
 	}
 }
 
@@ -96,8 +103,10 @@ func (s *Server) StartListening() {
 			s.InConnections[inNumber] = conn
 			go s.handleLamport(conn)
 		} else {
+			fmt.Println("RECEIVED CLIENT")
 			s.internalChanIn <- "GETAVAILABLE"
 			response := <-s.internalChanOut
+			fmt.Println("RECEIVED CLIENT 2")
 			if response != "TRUE" {
 				fmt.Fprintf(conn, "System is not availabe now, please retry later\n")
 			} else {
