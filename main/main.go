@@ -33,8 +33,11 @@ func main() {
 		}
 	}
 
-	servers[0].AskSC()
-	servers[1].AskSC()
+	go servers[0].AskSC()
+	go servers[1].AskSC()
+	go servers[2].AskSC()
+	go servers[3].AskSC()
+	go servers[4].AskSC()
 
 	for {
 		time.Sleep(time.Second * 10)

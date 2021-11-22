@@ -23,6 +23,7 @@ type Server struct {
 	internalChanIn  chan string
 	internalChanOut chan string
 	scChan          chan bool
+	inSc            bool
 	debugMode       bool
 	lamportArray    []LamportState
 	Config          Configuration
@@ -53,6 +54,7 @@ func NewServer(serverNumber int) *Server {
 	server.internalChanOut = make(chan string)
 	server.scChan = make(chan bool)
 	server.lamportArray = make([]LamportState, configuration.ServerNumber)
+	server.inSc = false
 	for i := 0; i < configuration.ServerNumber; i++ {
 		server.lamportArray[i] = LamportState{State: REL, Stamp: 0}
 	}
@@ -135,24 +137,32 @@ func (s *Server) handleInternalMessages() {
 				State: REL,
 				Stamp: s.stamp,
 			}
+			s.inSc = false
 			s.internalChanOut <- strconv.Itoa(s.stamp)
+		case "SYNCDATA":
+
 		}
 
 		//Grant SC access if needed
-		if s.lamportArray[s.serverNumber].State == REQ {
+		if s.lamportArray[s.serverNumber].State == REQ && !s.inSc {
 			correct := true
 			for i := 0; i < s.Config.ServerNumber; i++ {
 				if i != s.serverNumber {
-					if s.lamportArray[i].Stamp <= s.lamportArray[s.serverNumber].Stamp {
+					if s.lamportArray[i].Stamp < s.lamportArray[s.serverNumber].Stamp {
 						correct = false
 						break
-					} else if s.lamportArray[i].State == REQ {
-						correct = false
-						break
+					} else if s.lamportArray[i].State == REQ && s.lamportArray[i].Stamp == s.lamportArray[s.serverNumber].Stamp {
+						if i <= s.serverNumber {
+							correct = false
+							break
+						} else {
+							break
+						}
 					}
 				}
 			}
 			if correct {
+				s.inSc = true
 				s.scChan <- true
 			}
 		}
@@ -239,11 +249,17 @@ func (s *Server) AskSC() {
 	}
 
 	//TODO: Do something while you have SC
+
+	//TODO: Send modified content to other servers, could send userinput if rooms are modified
 	_ = <-s.scChan
 	output := fmt.Sprintf("Server %d entering SC", s.serverNumber)
 	fmt.Println(output)
+
+	//Sleeping to simulate SC treatement
 	time.Sleep(time.Second * 5)
+	fmt.Println("Sending LOCALREL")
 	s.internalChanIn <- "LOCALREL"
+	time.Sleep(time.Second * 3)
 	actualStamp = <-s.internalChanOut
 
 	for i := 0; i < numberOfServers; i++ {
