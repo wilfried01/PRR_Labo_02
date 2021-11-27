@@ -217,11 +217,6 @@ func (s *Server) handleInternalMessages() {
 			}
 			s.inSc = false
 			s.internalChanOut <- strconv.Itoa(s.stamp)
-		//Write external data
-		case "SYNCDATA":
-
-		//Return local data
-		case "GETDATA":
 
 		case "AVAILABLE":
 			s.Available = true
