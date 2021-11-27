@@ -60,16 +60,20 @@ func main() {
 		r1 := rand.New(s1)
 		serverChoosen = r1.Intn(4) + 1
 	}
-	fmt.Println(serverChoosen)
 	//TODO: Handle error
 	conn, err := net.Dial("tcp", configuration.Ips[serverChoosen-1])
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Fprintf(conn, "CLIENT\n")
 	connReader := bufio.NewReader(conn)
-	//fmt.Println(connReader.ReadString('\n'))
-	fmt.Fprintf(os.Stdout, "%d\n", serverChoosen)
+
+	//Send first message from client
+	fmt.Fprintf(conn, "CLIENT\n")
+
+	//Get the welcome message
+	welcomeMessage, _ := connReader.ReadString('\n')
+	fmt.Print(welcomeMessage)
+
 	displayHelp()
 
 	for {
@@ -84,22 +88,71 @@ func main() {
 			case "HELP":
 				displayHelp()
 			case "QUIT":
-				//TODO: Tell the server to close the connection
-				return
+				//Assert that it is the only command
+				if len(tokens) == 1 {
+					fmt.Fprintf(conn, "%s\n", tokens[0])
+					conn.Close()
+					return
+				}
 			case "DISPLAY":
 				if len(tokens) == 2 {
-					fmt.Fprintf(conn, "DISPLAY\n")
-					fmt.Printf(connReader.ReadString('\n'))
+					//Verify the value
+					value := checkParameter(tokens[1], 1, configuration.NumberOfDays)
+					if value != -1 {
+						userInput = userInput + " " + username
+						fmt.Fprintf(conn, "%s\n", userInput)
+						for {
+							received, _ := connReader.ReadString('\n')
+							if received == "END\n" {
+								break
+							}
+							fmt.Print(received)
+						}
+					}
 				}
-				break
+				//TODO: Check number of arguments
 			case "RESERVE":
+				if len(tokens) == 4 {
+					day := checkParameter(tokens[1], 1, configuration.NumberOfDays)
+					room := checkParameter(tokens[2], 1, configuration.NumberOfRooms)
+					duration := checkParameter(tokens[3], 1, configuration.NumberOfDays-day+1)
+					if day != -1 && room != -1 && duration != -1 {
+						userInput = userInput + " " + username
+						fmt.Fprintf(conn, "%s\n", userInput)
+						received, _ := connReader.ReadString('\n')
+						fmt.Printf(received)
+					}
+				}
 			case "GETFREE":
+				if len(tokens) == 3 {
+					day := checkParameter(tokens[1], 1, configuration.NumberOfDays)
+					room := checkParameter(tokens[2], 1, configuration.NumberOfRooms)
+					if day != -1 && room != -1 {
+						fmt.Fprintf(conn, "%s\n", userInput)
+						received, _ := connReader.ReadString('\n')
+						fmt.Printf(received)
+					}
+				}
+
+			default:
+				fmt.Println("Unknown command, enter HELP for displaying the list of commands")
 			}
 		}
 	}
 }
 
-func checkParameter() {
+func checkParameter(token string, lowerBound int, upperBound int) int {
+	value, err := strconv.Atoi(token)
+	//Error happened
+	if err != nil {
+		fmt.Printf("Invalid parameter <%s>", token)
+		return -1
+	}
+	if value < lowerBound || value > upperBound {
+		fmt.Printf("Invalid parameter <%s> must be between %d and %d", token, lowerBound, upperBound)
+		return -1
+	}
+	return value
 
 }
 

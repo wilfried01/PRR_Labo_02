@@ -34,6 +34,7 @@ func main() {
 		}
 	}
 
+	//servers[0].AskSC()
 	for {
 		time.Sleep(time.Second * 10)
 	}
