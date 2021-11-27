@@ -15,21 +15,24 @@ import (
 )
 
 type Server struct {
-	hotel        hotel.Hotel
+	hotel        *hotel.Hotel
 	serverNumber int
 	tcpListener  net.Listener
 	//TODO: put this private, used right now for debugging purposes
-	OutConnections  []net.Conn
-	InConnections   []net.Conn
-	Available       bool
-	stamp           int
-	internalChanIn  chan string
-	internalChanOut chan string
-	scChan          chan bool
-	inSc            bool
-	debugMode       bool
-	lamportArray    []LamportState
-	Config          configuration.Configuration
+	OutConnections       []net.Conn
+	InConnections        []net.Conn
+	Available            bool
+	stamp                int
+	internalChanIn       chan string
+	internalChanOut      chan string
+	internalHotelChanIn  chan string
+	internalHotelChanOut chan string
+
+	scChan       chan bool
+	inSc         bool
+	debugMode    bool
+	lamportArray []LamportState
+	Config       configuration.Configuration
 }
 
 //NewServer handles creating a new server with correct parameters,
@@ -56,9 +59,13 @@ func NewServer(serverNumber int) *Server {
 	server.InConnections = make([]net.Conn, configuration.ServerNumber)
 	server.internalChanIn = make(chan string)
 	server.internalChanOut = make(chan string)
+	server.internalHotelChanIn = make(chan string)
+	server.internalHotelChanOut = make(chan string)
 	server.scChan = make(chan bool)
 	server.lamportArray = make([]LamportState, configuration.ServerNumber)
 	server.inSc = false
+	server.hotel = hotel.NewHotel(configuration.NumberOfRooms, configuration.NumberOfDays, server.debugMode)
+	go server.hotel.HandleInternalMessages(server.internalHotelChanIn, server.internalHotelChanOut)
 	for i := 0; i < configuration.ServerNumber; i++ {
 		server.lamportArray[i] = LamportState{State: REL, Stamp: 0}
 	}
@@ -72,20 +79,41 @@ func NewServer(serverNumber int) *Server {
 }
 
 func (s *Server) handleClient(conn net.Conn) {
-	fmt.Println("ASDASD")
-	//fmt.Println(bufio.NewReader(conn).ReadString('\n'))
-	fmt.Println("ASDASDASD")
-	//fmt.Println(bufio.NewReader(conn).ReadString('\n'))
-	//fmt.Fprintf(conn, "Hello client\n")
+	//Pass the configuration numbers to the client
+
+	fmt.Fprintf(conn, "Welcome to the reservation server number %d\n", s.serverNumber)
+
 	for {
 		userInput, _ := bufio.NewReader(conn).ReadString('\n')
+		tokens := strings.Fields(userInput)
 		fmt.Printf("RECEIVED %s", userInput)
-		//fmt.Fprintf(conn, userInput)
-		//s.AskSC()
-		//time.Sleep(time.Second * 3)
-		//fmt.Fprintf(conn, "WELCOME \n")
-		fmt.Fprintf(conn, userInput)
-		//s.releaseSC()
+		if tokens[0] == "QUIT" {
+			conn.Close()
+			return
+		} else {
+			s.AskSC()
+
+			needSync := false
+			if tokens[0] != "DISPLAY" {
+				needSync = true
+			}
+
+			s.internalHotelChanIn <- userInput
+			output := <-s.internalHotelChanOut
+			fmt.Fprintf(conn, "%s", output)
+			if needSync {
+				for i := 0; i < s.Config.ServerNumber; i++ {
+					if i != s.serverNumber {
+						s.internalHotelChanIn <- "GETDATA"
+						output = <-s.internalHotelChanOut
+						fmt.Fprintf(s.OutConnections[i], "SYNC %s\n", output)
+					}
+				}
+			}
+
+			s.releaseSC()
+
+		}
 	}
 }
 
@@ -94,36 +122,46 @@ func (s *Server) StartListening() {
 		//TODO: Handle errors
 		//TODO: Add defer
 		conn, _ := s.tcpListener.Accept()
-		input, _ := bufio.NewReader(conn).ReadString('\n')
-		input = strings.TrimSuffix(input, "\n")
-		tokens := strings.Fields(input)
-		size := len(tokens)
-		if size >= 2 && tokens[0] == "HELLO" {
-			inNumber, _ := strconv.Atoi(tokens[1])
-			s.InConnections[inNumber] = conn
-			go s.handleLamport(conn)
-		} else {
-			fmt.Println("RECEIVED CLIENT")
-			s.internalChanIn <- "GETAVAILABLE"
-			response := <-s.internalChanOut
-			fmt.Println("RECEIVED CLIENT 2")
-			if response != "TRUE" {
-				fmt.Fprintf(conn, "System is not availabe now, please retry later\n")
+		if !s.GetAvailable() {
+			input, _ := bufio.NewReader(conn).ReadString('\n')
+			input = strings.TrimSuffix(input, "\n")
+			tokens := strings.Fields(input)
+			size := len(tokens)
+			if size >= 2 && tokens[0] == "HELLO" {
+				inNumber, _ := strconv.Atoi(tokens[1])
+				s.InConnections[inNumber] = conn
+				go s.handleLamport(conn)
+				correct := true
+				for i := 0; i < s.Config.ServerNumber; i++ {
+					if i != s.serverNumber {
+						if s.InConnections[i] == nil {
+							correct = false
+							break
+						}
+					}
+				}
+				if correct {
+					s.internalChanIn <- "AVAILABLE"
+					_ = <-s.internalChanOut
+				}
 			} else {
-				go s.handleClient(conn)
+				//In the case the servers aren't ready we tell the client the system is unavailable
+				fmt.Fprintf(conn, "System is not availabe now, please retry later\n")
+				conn.Close()
+				//TODO: Gracefully quit the client
 			}
+		} else {
+			//Read first line sent by client to init
+			_, _ = bufio.NewReader(conn).ReadString('\n')
+			go s.handleClient(conn)
 		}
-		//fmt.Println(input)
 	}
 }
 
 func (s *Server) GetAvailable() bool {
 	s.internalChanIn <- "GETAVAILABLE"
 	output := <-s.internalChanOut
-	if output == "TRUE" {
-		return true
-	}
-	return false
+	return output == "TRUE"
 }
 
 func (s *Server) handleInternalMessages() {
@@ -179,11 +217,6 @@ func (s *Server) handleInternalMessages() {
 			}
 			s.inSc = false
 			s.internalChanOut <- strconv.Itoa(s.stamp)
-		//Write external data
-		case "SYNCDATA":
-
-		//Return local data
-		case "GETDATA":
 
 		case "AVAILABLE":
 			s.Available = true
@@ -245,9 +278,13 @@ func (s *Server) handleLamport(conn net.Conn) {
 
 		input, _ := bufio.NewReader(conn).ReadString('\n')
 		input = strings.TrimSuffix(input, "\n")
-		//Format pour recevoir : ACK <estampille> <num server expediteur>
 		tokens := strings.Fields(input)
-		//externalStamp, _ := strconv.Atoi(tokens[1])
+		if tokens[0] == "SYNC" {
+			s.internalHotelChanIn <- fmt.Sprintf("SETDATA %s", tokens[1])
+			_ = <-s.internalHotelChanOut
+			continue
+		}
+		//Format pour recevoir : ACK <estampille> <num server expediteur>
 		externalServerNumber, _ := strconv.Atoi(tokens[2])
 		switch tokens[0] {
 		case "ACK":
@@ -293,8 +330,6 @@ func (s *Server) ConnectToOthers() {
 		}
 	}
 	fmt.Println("CONNECTING SUCCESSFUL ON SERVER " + strconv.Itoa(s.serverNumber+1))
-	s.internalChanIn <- "AVAILABLE"
-	_ = <-s.internalChanOut
 	return
 }
 
@@ -310,10 +345,6 @@ func (s *Server) AskSC() {
 			fmt.Fprintf(s.OutConnections[i], "REQ %s %d\n", actualStamp, s.serverNumber)
 		}
 	}
-
-	//TODO: Do something while you have SC
-
-	//TODO: Send modified content to other servers, could send userinput if rooms are modified
 	_ = <-s.scChan
 	output := fmt.Sprintf("Server %d entering SC", s.serverNumber)
 	fmt.Println(output)
@@ -322,9 +353,6 @@ func (s *Server) AskSC() {
 	if s.debugMode {
 		time.Sleep(time.Second * 5)
 	}
-
-	//TODO: Remove this, used for tests RN
-	//s.releaseSC()
 
 }
 
