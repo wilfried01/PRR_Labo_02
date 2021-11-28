@@ -51,7 +51,7 @@ go run main.go  (dans le package client)
 
 De plus, les logs on le formât suivant :
 
-<server><Type De Message><Horloge de Lamport><RECEIVED FROM|SENT TO><server>
+(server)(Type De Message)(Horloge de Lamport)(RECEIVED FROM|SENT TO)(server)
 
 Il est aussi conseiller d'utiliser le mode debug dans les scénarios.
 
