@@ -123,7 +123,7 @@ func (s *Server) HandleClient(conn net.Conn) {
 func (s *Server) StartListening() {
 	for {
 		conn, _ := s.tcpListener.Accept()
-		c := make(chan os.Signal)
+	  c := make(chan os.Signal)
 		// handle panic quits
 		signal.Notify(c, os.Interrupt, syscall.SIGINT)
 		go func() {
