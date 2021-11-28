@@ -122,6 +122,14 @@ func (s *Server) StartListening() {
 		//TODO: Handle errors
 		//TODO: Add defer
 		conn, _ := s.tcpListener.Accept()
+			c := make(chan os.Signal)
+		// handle panic quits
+		signal.Notify(c, os.Interrupt, syscall.SIGINT)
+		go func() {
+			<-c
+			conn.Close()
+			os.Exit(1)
+		}()
 		if !s.GetAvailable() {
 			input, _ := bufio.NewReader(conn).ReadString('\n')
 			input = strings.TrimSuffix(input, "\n")
