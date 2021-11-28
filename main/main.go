@@ -17,12 +17,18 @@ func main() {
 	if err1 != nil {
 		log.Fatal(err1)
 	}
-	args:=os.Args[1]
+	args:=os.Args[1:]
+	if len(args)==1{
+		arg:= args[0]
 
-	if(args =="DEBUG"){
-		fmt.Println("Servers are running on debug mode!")
-		debug=true
+			if arg =="DEBUG" {
+				fmt.Println("Servers are running on debug mode!")
+				debug = true
+			}
 	}
+
+
+
 	decoder := json.NewDecoder(file)
 	configFile := configuration.Configuration{}
 	err := decoder.Decode(&configFile)
