@@ -213,4 +213,6 @@ Server 1 leaving SC
 
 ```
 Les mêmes logs sont obtenus, néanmoins, la réservation de MAXIME va être faite lorsque celle
-de ANDRE ne vas pas être possible ceci prouve la cohérence de donnés et mis-a-jour des donnés dans cette architecture pluri-serveurs.
+de ANDRE ne vas pas être possible. Ceci prouve la cohérence des et la mise-a-jour des données dans cette architecture pluri-serveurs.
+
+
