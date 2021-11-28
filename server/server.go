@@ -3,9 +3,7 @@ package server
 import (
 	"bufio"
 	"configuration"
-	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -39,40 +37,39 @@ type Server struct {
 
 //NewServer handles creating a new server with correct parameters,
 //server number starts at 1
-func NewServer(serverNumber int, debug bool) *Server {
+func NewServer(serverNumber int, debug bool, inputConfig configuration.Configuration) *Server {
 	number := serverNumber - 1
 	server := Server{serverNumber: number, Available: false}
 	server.stamp = 0
 	//Read config
-	file, _ := os.Open("server/configuration.json")
-	defer file.Close()
-	decoder := json.NewDecoder(file)
-	configuration := configuration.Configuration{}
-	err := decoder.Decode(&configuration)
-	if err != nil {
-		log.Fatal(err)
-		return nil
-	}
-	server.Config = configuration
+	//decoder := json.NewDecoder(file)
+	//configuration := configuration.Configuration{}
+	//err := decoder.Decode(&configuration)
+	//if err != nil {
+	//	log.Fatal(err)
+	//	return nil
+	//}
+
+	server.Config = inputConfig
 
 	//Create internal variables
-	server.debugMode =debug
-	server.OutConnections = make([]net.Conn, configuration.ServerNumber)
-	server.InConnections = make([]net.Conn, configuration.ServerNumber)
+	server.debugMode = debug
+	server.OutConnections = make([]net.Conn, server.Config.ServerNumber)
+	server.InConnections = make([]net.Conn, server.Config.ServerNumber)
 	server.internalChanIn = make(chan string)
 	server.internalChanOut = make(chan string)
 	server.internalHotelChanIn = make(chan string)
 	server.internalHotelChanOut = make(chan string)
 	server.scChan = make(chan bool)
-	server.lamportArray = make([]LamportState, configuration.ServerNumber)
+	server.lamportArray = make([]LamportState, server.Config.ServerNumber)
 	server.inSc = false
-	server.hotel = hotel.NewHotel(configuration.NumberOfRooms, configuration.NumberOfDays, server.debugMode)
+	server.hotel = hotel.NewHotel(server.Config.NumberOfRooms, server.Config.NumberOfDays, server.debugMode)
 	go server.hotel.HandleInternalMessages(server.internalHotelChanIn, server.internalHotelChanOut)
-	for i := 0; i < configuration.ServerNumber; i++ {
+	for i := 0; i < server.Config.ServerNumber; i++ {
 		server.lamportArray[i] = LamportState{State: REL, Stamp: 0}
 	}
 
-	server.tcpListener, _ = net.Listen("tcp", configuration.Ips[number])
+	server.tcpListener, _ = net.Listen("tcp", server.Config.Ips[number])
 	go server.handleInternalMessages()
 	go server.StartListening()
 	go server.ConnectToOthers()
@@ -269,7 +266,7 @@ func (s *Server) handleInternalMessages() {
 			}
 		}
 		if s.debugMode {
-			time.Sleep(time.Second*10)
+			time.Sleep(time.Second * 10)
 		}
 	}
 
