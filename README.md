@@ -38,10 +38,15 @@ go test -v
 ```
 ### Scénarios de flux d'Exécution
 
-Il faut a nouveau re-lancer dans le package main:
+Il faut a nouveau re-lancer dans le package main(conseiller d'utiliser le mode debug dans les scénarios):
 
+Normal:
 ``` bash
 go run main.go
+```
+Debug:
+``` bash
+go run main.go DEBUG
 ```
 il est aussi conseiller d'ouvrir deux client-consoles pour testes les divers scénarios :
 
@@ -53,7 +58,6 @@ De plus, les logs on le formât suivant :
 
 (server)(Type De Message)(Horloge de Lamport)(RECEIVED FROM|SENT TO)(server)
 
-Il est aussi conseiller d'utiliser le mode debug dans les scénarios.
 
 #### Scénario 1 - Une seule réservation d'un client
 
