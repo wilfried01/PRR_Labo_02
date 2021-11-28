@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// Hotel represents a hotel with some rooms for a certain amount of time
 type Hotel struct {
 	rooms       [][]string
 	numberRooms int
@@ -15,6 +16,7 @@ type Hotel struct {
 	debugMode   bool
 }
 
+// NewHotel return a struct Hotel initialized with the parameters
 func NewHotel(numberOfRooms int, numberOfDays int, debugMode bool) *Hotel {
 	//init rooms
 	h := Hotel{
@@ -29,6 +31,8 @@ func NewHotel(numberOfRooms int, numberOfDays int, debugMode bool) *Hotel {
 	return &h
 }
 
+// HandleInternalMessages is responsible for accessing rooms data.
+// This takes 2 channels as parameters, one for receiving, one for sending
 func (h *Hotel) HandleInternalMessages(in <-chan string, out chan<- string) {
 	stop := false
 	for stop == false {
