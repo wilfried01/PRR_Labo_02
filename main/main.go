@@ -3,6 +3,7 @@ package main
 import (
 	"configuration"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"server"
@@ -10,8 +11,9 @@ import (
 )
 
 func main() {
-	
-	file, err1 := os.Open("server/configuration.json")
+
+	//Modify the filepath to adapt to your environment
+	file, err1 := os.Open("main/configuration.json")
 	defer file.Close()
 	if err1 != nil {
 		log.Fatal(err1)
@@ -47,15 +49,7 @@ func main() {
 		}
 	}
 
-	//servers[0].AskSC()
 	for {
 		time.Sleep(time.Second * 10)
 	}
-	/*
-		for i:=0; i < configuration.ServerNumber; i++ {
-			newServer.ConnectToOthers(configuration)
-		}
-
-	*/
-
 }
