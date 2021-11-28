@@ -38,13 +38,8 @@ func main() {
 	for i := configFile.ServerNumber; i > 0; i-- {
 		servers[i-1] = server.NewServer(i, debug, configFile)
 	}
-	for {
-		//time.Sleep(time.Second * 1)
-		if servers[configFile.ServerNumber-1].GetAvailable() {
-			break
-		}
-	}
 
+	//Make it sleep to prevent the end of the application
 	for {
 		time.Sleep(time.Second * 10)
 	}
