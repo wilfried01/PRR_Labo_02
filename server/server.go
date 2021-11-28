@@ -8,9 +8,11 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"server/hotel"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
