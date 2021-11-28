@@ -5,6 +5,15 @@ Dans cette version de l'applicaiton, nous avons mis en place l'utilisation de pl
 fonctionnalités que celles du laboratoire 1. Afin de gérer la concurrence entre eux, les sites utilisent l'algorithme 
 de Lamport.
 
+## Architecture
+Le dossier **_main_** contient un code permettant de lancer les serveurs suivant le fichier de configuration.
+
+Le dossier **_server_** contient le code serveur qui s'occupe de l'exclusion mutuelle avec Lamport
+
+Le dossier **_server/hotel_** contient le code du service de réservation (labo 1). Ce dernier a été légèrement modifié afin de l'intégrer dans le serveur
+
+Le dossier **_client_** contient le code du client, il nous a paru nécessaire de réaliser un client afin de faciliter les tests
+
 ## Lancement de l'application
 Pour utiliser l'application il convient de procéder comme suite:
 
@@ -15,7 +24,7 @@ Pour utiliser l'application il convient de procéder comme suite:
   - le nombre de jours
 
 
-> **Attention. Si le fichier de configuration n'est pas bien éditer, l'application ne 
+> **Attention. Si le fichier de configuration n'est pas bien édité, l'application ne 
 > fonctionnera pas. Un fichier est mis à disposition afin de fournir un exemple de 
 > configuration**
 
@@ -48,7 +57,7 @@ Debug:
 ``` bash
 go run main.go DEBUG
 ```
-il est aussi conseiller d'ouvrir deux client-consoles pour testes les divers scénarios :
+il est aussi conseillé d'ouvrir deux client-consoles pour testes les divers scénarios :
 
 ``` bash
 go run main.go  (dans le package client)
