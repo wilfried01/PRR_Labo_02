@@ -30,13 +30,14 @@ func NewHotel(numberOfRooms int, numberOfDays int, debugMode bool) *Hotel {
 }
 
 func (h *Hotel) HandleInternalMessages(in <-chan string, out chan<- string) {
-	for {
+	stop := false
+	for stop == false {
 		message := <-in
 		params := strings.Fields(message)
 		command := params[0]
 		outMessage := ""
 		if h.debugMode {
-			time.Sleep(10 * time.Second)
+			time.Sleep(5 * time.Second)
 		}
 		switch command {
 		case "DISPLAY":
@@ -120,6 +121,8 @@ func (h *Hotel) HandleInternalMessages(in <-chan string, out chan<- string) {
 			}
 			h.rooms = updatedRooms
 			out <- "OK"
+		case "STOP":
+			return
 		}
 
 	}
