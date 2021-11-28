@@ -37,7 +37,7 @@ type Server struct {
 
 //NewServer handles creating a new server with correct parameters,
 //server number starts at 1
-func NewServer(serverNumber int) *Server {
+func NewServer(serverNumber int, debug bool) *Server {
 	number := serverNumber - 1
 	server := Server{serverNumber: number, Available: false}
 	server.stamp = 0
@@ -54,7 +54,7 @@ func NewServer(serverNumber int) *Server {
 	server.Config = configuration
 
 	//Create internal variables
-	server.debugMode = false
+	server.debugMode = debug
 	server.OutConnections = make([]net.Conn, configuration.ServerNumber)
 	server.InConnections = make([]net.Conn, configuration.ServerNumber)
 	server.internalChanIn = make(chan string)
@@ -259,7 +259,7 @@ func (s *Server) handleInternalMessages() {
 			}
 		}
 		if s.debugMode {
-			time.Sleep(time.Second)
+			time.Sleep(time.Second*10)
 		}
 	}
 
@@ -351,7 +351,7 @@ func (s *Server) AskSC() {
 
 	//Sleeping to simulate SC treatement
 	if s.debugMode {
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 10)
 	}
 
 }
@@ -360,7 +360,7 @@ func (s *Server) releaseSC() {
 	fmt.Println("Sending LOCALREL")
 	s.internalChanIn <- "LOCALREL"
 	if s.debugMode {
-		time.Sleep(time.Second * 3)
+		time.Sleep(time.Second * 10)
 	}
 	actualStamp := <-s.internalChanOut
 	output := fmt.Sprintf("Server %d leaving SC", s.serverNumber)

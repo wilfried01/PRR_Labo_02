@@ -3,6 +3,7 @@ package main
 import (
 	"configuration"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"server"
@@ -11,11 +12,17 @@ import (
 
 func main() {
 	file, err1 := os.Open("server/configuration.json")
+	debug:=false
 	defer file.Close()
 	if err1 != nil {
 		log.Fatal(err1)
 	}
+	args:=os.Args[1]
 
+	if(args =="DEBUG"){
+		fmt.Println("Servers are running on debug mode!")
+		debug=true
+	}
 	decoder := json.NewDecoder(file)
 	configFile := configuration.Configuration{}
 	err := decoder.Decode(&configFile)
@@ -25,7 +32,7 @@ func main() {
 	}
 	var servers = make([]*server.Server, configFile.ServerNumber)
 	for i := configFile.ServerNumber; i > 0; i-- {
-		servers[i-1] = server.NewServer(i)
+		servers[i-1] = server.NewServer(i, debug)
 	}
 	for {
 		time.Sleep(time.Second * 1)
