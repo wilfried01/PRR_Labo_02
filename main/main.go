@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	file, err1 := os.Open("configuration.json")
+	file, err1 := os.Open("main/configuration.json")
 	debug := false
 
 	defer file.Close()
@@ -34,17 +34,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 		return
-	}
-		debug := false
-
-	args := os.Args[1:]
-	if len(args) == 1 {
-		arg := args[0]
-
-		if arg == "DEBUG" {
-			fmt.Println("Servers are running on debug mode!")
-			debug = true
-		}
 	}
 
 	var servers = make([]*server.Server, configFile.ServerNumber)

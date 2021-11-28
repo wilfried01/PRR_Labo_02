@@ -123,7 +123,7 @@ func (s *Server) HandleClient(conn net.Conn) {
 func (s *Server) StartListening() {
 	for {
 		conn, _ := s.tcpListener.Accept()
-	  c := make(chan os.Signal)
+		c := make(chan os.Signal)
 		// handle panic quits
 		signal.Notify(c, os.Interrupt, syscall.SIGINT)
 		go func() {
@@ -166,7 +166,6 @@ func (s *Server) StartListening() {
 				//In the case the servers aren't ready we tell the client the system is unavailable
 				fmt.Fprintf(conn, "System is not availabe now, please retry later\n")
 				conn.Close()
-				//TODO: Gracefully quit the client
 			}
 		} else {
 			//Read first line sent by client to init

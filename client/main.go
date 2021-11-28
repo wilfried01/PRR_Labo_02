@@ -15,7 +15,8 @@ import (
 )
 
 func main() {
-	file, _ := os.Open("server/configuration.json")
+	//Read config file
+	file, _ := os.Open("main/configuration.json")
 	defer file.Close()
 	decoder := json.NewDecoder(file)
 	configuration := configuration.Configuration{}
@@ -25,17 +26,22 @@ func main() {
 		return
 	}
 
+	//Display welcome message
 	reader := bufio.NewReader(os.Stdin)
 	var userInput string
 	fmt.Println("Welcome to the room reservation system")
+
+	//Read username
 	fmt.Println("Please enter you name :")
 	userInput, _ = reader.ReadString('\n')
 	username := strings.TrimRightFunc(userInput, func(c rune) bool {
 		//In windows newline is \r\n
 		return c == '\r' || c == '\n'
 	})
-	var serverChoosen int
+	var serverNumber int
 	fmt.Fprintf(os.Stdout, "Hello %s !\n", username)
+
+	//Make the user choose a server
 	for {
 		fmt.Fprintf(os.Stdout, "Please choose to which server you want to connect [1..%d], write 0 if you want to have a random server\n", configuration.ServerNumber)
 		userInput, _ = reader.ReadString('\n')
@@ -43,9 +49,9 @@ func main() {
 			//In windows newline is \r\n
 			return c == '\r' || c == '\n'
 		})
-		serverChoosen, err = strconv.Atoi(userInput)
+		serverNumber, err = strconv.Atoi(userInput)
 		if err == nil {
-			if serverChoosen >= 0 && serverChoosen <= configuration.ServerNumber {
+			if serverNumber >= 0 && serverNumber <= configuration.ServerNumber {
 				break
 			} else {
 				fmt.Fprintf(os.Stdout, "Number must be between 0 and %d\n", configuration.ServerNumber)
@@ -55,13 +61,15 @@ func main() {
 		}
 	}
 
-	if serverChoosen == 0 {
+	//If the choice is 0 make it take a random server
+	if serverNumber == 0 {
 		s1 := rand.NewSource(time.Now().UnixNano())
 		r1 := rand.New(s1)
-		serverChoosen = r1.Intn(4) + 1
+		serverNumber = r1.Intn(4) + 1
 	}
-	//TODO: Handle error
-	conn, err := net.Dial("tcp", configuration.Ips[serverChoosen-1])
+
+	//Connection to the server
+	conn, err := net.Dial("tcp", configuration.Ips[serverNumber-1])
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -110,7 +118,6 @@ func main() {
 						}
 					}
 				}
-				//TODO: Check number of arguments
 			case "RESERVE":
 				if len(tokens) == 4 {
 					day := checkParameter(tokens[1], 1, configuration.NumberOfDays)
