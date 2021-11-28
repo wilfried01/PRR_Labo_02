@@ -8,9 +8,11 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"server/hotel"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -54,7 +56,7 @@ func NewServer(serverNumber int, debug bool) *Server {
 	server.Config = configuration
 
 	//Create internal variables
-	server.debugMode = debug
+	server.debugMode =debug
 	server.OutConnections = make([]net.Conn, configuration.ServerNumber)
 	server.InConnections = make([]net.Conn, configuration.ServerNumber)
 	server.internalChanIn = make(chan string)
@@ -122,6 +124,14 @@ func (s *Server) StartListening() {
 		//TODO: Handle errors
 		//TODO: Add defer
 		conn, _ := s.tcpListener.Accept()
+		c := make(chan os.Signal)
+		// handle panic quits
+		signal.Notify(c, os.Interrupt, syscall.SIGINT)
+		go func() {
+			<-c
+			conn.Close()
+			os.Exit(1)
+		}()
 		if !s.GetAvailable() {
 			input, _ := bufio.NewReader(conn).ReadString('\n')
 			input = strings.TrimSuffix(input, "\n")
