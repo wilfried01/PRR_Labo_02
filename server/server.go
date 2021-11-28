@@ -39,7 +39,7 @@ type Server struct {
 
 //NewServer handles creating a new server with correct parameters,
 //server number starts at 1
-func NewServer(serverNumber int) *Server {
+func NewServer(serverNumber int, debugBool bool) *Server {
 	number := serverNumber - 1
 	server := Server{serverNumber: number, Available: false}
 	server.stamp = 0
@@ -56,7 +56,7 @@ func NewServer(serverNumber int) *Server {
 	server.Config = configuration
 
 	//Create internal variables
-	server.debugMode = false
+	server.debugMode = debugBool
 	server.OutConnections = make([]net.Conn, configuration.ServerNumber)
 	server.InConnections = make([]net.Conn, configuration.ServerNumber)
 	server.internalChanIn = make(chan string)
